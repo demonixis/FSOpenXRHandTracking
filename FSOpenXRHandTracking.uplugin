@@ -1,0 +1,48 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "FSOpenXRHandTracking",
+	"Description": "Hand Tracking plugin using OpenXR Hand Tracking extensions",
+	"Category": "Virtual Reality",
+	"CreatedBy": "Yannick Comte",
+	"CreatedByURL": "https://www.demonixis.net",
+	"DocsURL": "https://www.demonixis.net",
+	"MarketplaceURL": "",
+	"SupportURL": "contact@demonixis.net",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "FSOpenXRHandTracking",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "OpenXR",
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux",
+				"Android"
+			]
+		},
+		{
+			"Name": "OpenXRHandTracking",
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Linux",
+				"Android"
+			]
+		},
+		{
+			"Name": "XRVisualization",
+			"Enabled": true
+		}
+	]
+}
