@@ -3,6 +3,7 @@
 
 #include "FSInstancedHand.h"
 
+#include "ComponentUtils.h"
 #include "EnhancedInputSubsystems.h"
 #include "XRVisualizationFunctionLibrary.h"
 #include "InputActionValue.h"
@@ -24,11 +25,11 @@ UFSInstancedHand::UFSInstancedHand()
 	bRenderWireframeBones = false;
 	bUpdateHandPointer = false;
 	PointerContainer = nullptr;
-	HandPointerAngleFromPalm = 45;
+	HandPointerAngleFromPalm = -45.0f;
 	HandPointerLocationSpeed = 8.0f;
 	HandPointerRotationSpeed = 2.0f;
 	HandPointerDepth = 0;
-	bHideHandPointerWhenNotTracked = true;
+	bHideHandPointerWhenNotTracked = false;
 	BoneLocations.Init(FVector::ZeroVector, EHandKeypointCount);
 	BoneRotations.Init(FRotator::ZeroRotator, EHandKeypointCount);
 
@@ -44,7 +45,7 @@ UFSInstancedHand::UFSInstancedHand()
 	InputActions.Init(nullptr, InputActionCount); // 4 Pinchable fingers.
 }
 
-bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData)
+bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const float DeltaTime)
 {
 	ClearInstances();
 
@@ -101,6 +102,25 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData)
 		OverrideInputWithAction(InputActions[i], bPinching ? 1.0f : 0.0f);
 	}
 
+	// Update the Hand Pointer if needed
+	if (bUpdateHandPointer && PointerContainer != nullptr)
+	{
+		// Get the current pointer transform
+		const FVector PointerLocation = PointerContainer->GetComponentLocation();
+		const FRotator PointerRotation = PointerContainer->GetComponentRotation();
+
+		// Get the target pointer transform and add an angle to the ray
+		constexpr int PalmIndex = static_cast<int>(EHandKeypoint::Palm);
+		const FVector PalmLocation = BoneLocations[PalmIndex];
+		FRotator PalmRotation = BoneRotations[PalmIndex];
+		PalmRotation.Pitch += HandPointerAngleFromPalm;
+
+		// Move the container
+		const FVector TargetLocation = FMath::Lerp(PointerLocation, PalmLocation, DeltaTime * HandPointerLocationSpeed);
+		const FRotator TargetRotation = FMath::Lerp(PointerRotation, PalmRotation, DeltaTime * HandPointerRotationSpeed);
+		PointerContainer->SetWorldLocationAndRotation(TargetLocation, TargetRotation);
+	}
+	
 	return true;
 }
 
@@ -189,24 +209,4 @@ void UFSInstancedHand::RenderFinger(const FXRMotionControllerData& InData, const
 			                WireframeColor, false, -1, HandPointerDepth, WireframeThickness);
 		}
 	}
-}
-
-void UFSInstancedHand::UpdateHandPointer(const float DeltaTime)
-{
-	if (!bUpdateHandPointer || PointerContainer == nullptr) return;
-
-	// Get the current pointer transform
-	const FVector PointerLocation = PointerContainer->GetRelativeLocation();
-	const FRotator PointerRotation = PointerContainer->GetRelativeRotation();
-
-	// Get the target pointer transform and add an angle to the ray
-	constexpr int PalmIndex = static_cast<int>(EHandKeypoint::Palm);
-	const FVector PalmLocation = BoneLocations[PalmIndex];
-	FRotator PalmRotation = BoneRotations[PalmIndex];
-	PalmRotation.Pitch += HandPointerAngleFromPalm;
-
-	// Move the container
-	const FVector TargetLocation = FMath::Lerp(PointerLocation, PalmLocation, DeltaTime * HandPointerLocationSpeed);
-	const FRotator TargetRotation = FMath::Lerp(PointerRotation, PalmRotation, DeltaTime * HandPointerRotationSpeed);
-	PointerContainer->SetRelativeLocationAndRotation(TargetLocation, TargetRotation);
 }

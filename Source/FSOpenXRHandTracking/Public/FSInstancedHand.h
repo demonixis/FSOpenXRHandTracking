@@ -87,7 +87,7 @@ public:
 
 	// Public & Blueprint functions
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
-	bool UpdateHand(const FXRMotionControllerData& InData);
+	bool UpdateHand(const FXRMotionControllerData& InData, const float DeltaTime);
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	bool IsHandTracked() const;
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
@@ -98,8 +98,6 @@ public:
 	void RegisterHandRay(USceneComponent* InRayContainer);
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	FRotator GetBoneRotation(const EHandKeypoint Keypoint) const;
-	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
-	void UpdateHandPointer(const float DeltaTime);
 	
 private:
 	void RenderFinger(const FXRMotionControllerData& InData, const EHandKeypoint FingerStart,
