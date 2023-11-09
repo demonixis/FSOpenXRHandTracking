@@ -13,22 +13,32 @@
 UFSInstancedHand::UFSInstancedHand()
 {
 	bHandTracked = false;
+	bPreviousHandTracked = false;
 	bLeftHand = false;
-	HandRendering = EFSOpenXRHandRendering::InstancedMesh;
+	HandRendering = EFSOpenXRHandRendering::Both;
 	PinchThreshold = 1.5f;
-	BoneScale = 0.01f;
+	BoneScale = 0.015f;
 	WireframeColor = FColor::Blue;
-	WireframeThickness = 0.05f;
-	bRenderWireframePalm = true;
-	bRenderWireframeBones = true;
+	WireframeThickness = 0.35f;
+	bRenderWireframePalm = false;
+	bRenderWireframeBones = false;
 	bUpdateHandPointer = false;
 	PointerContainer = nullptr;
 	HandPointerAngleFromPalm = 45;
 	HandPointerLocationSpeed = 8.0f;
-	HandPointerRotationSpeed = 4.0f;
+	HandPointerRotationSpeed = 2.0f;
 	HandPointerDepth = 0;
+	bHideHandPointerWhenNotTracked = true;
 	BoneLocations.Init(FVector::ZeroVector, EHandKeypointCount);
 	BoneRotations.Init(FRotator::ZeroRotator, EHandKeypointCount);
+
+	// Use the default Cube by default
+	const auto MeshAsset = ConstructorHelpers::FObjectFinder<UStaticMesh>(
+		TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'"));
+	if (MeshAsset.Object != nullptr)
+	{
+		UStaticMeshComponent::SetStaticMesh(MeshAsset.Object);
+	}
 
 	constexpr int InputActionCount = static_cast<int>(EFSOpenXRPinchFingers::Little) + 1;
 	InputActions.Init(nullptr, InputActionCount); // 4 Pinchable fingers.
@@ -39,6 +49,17 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData)
 	ClearInstances();
 
 	bHandTracked = InData.bValid;
+
+	if (bHandTracked != bPreviousHandTracked)
+	{
+		bPreviousHandTracked = bHandTracked;
+
+		// Enable/Disable the hand ray if needed.
+		if (bUpdateHandPointer && PointerContainer != nullptr)
+			PointerContainer->SetVisibility(bHandTracked, true);
+
+		HandTrackingEnableChanged.Broadcast(bHandTracked);
+	}
 
 	if (!bHandTracked)
 		return false;
@@ -139,7 +160,7 @@ void UFSInstancedHand::RenderFinger(const FXRMotionControllerData& InData, const
 {
 	const uint32 IndexStart = static_cast<uint32>(FingerStart);
 	const uint32 IndexStop = static_cast<uint32>(FingerEnd);
-	
+
 	const bool bValid = ((IndexStart > 0) && (IndexStart < EHandKeypointCount)) &&
 		((IndexStop > 0) && (IndexStop < EHandKeypointCount)) &&
 		(EHandKeypointCount == InData.HandKeyPositions.Num()) && (EHandKeypointCount == InData.HandKeyRadii.Num());
@@ -165,7 +186,7 @@ void UFSInstancedHand::RenderFinger(const FXRMotionControllerData& InData, const
 		if (bRenderWireframeBones)
 		{
 			DrawDebugSphere(World, InData.HandKeyPositions[DigitIndex + 1], InData.HandKeyRadii[DigitIndex + 1], 4,
-							WireframeColor, false, -1, HandPointerDepth, WireframeThickness);
+			                WireframeColor, false, -1, HandPointerDepth, WireframeThickness);
 		}
 	}
 }

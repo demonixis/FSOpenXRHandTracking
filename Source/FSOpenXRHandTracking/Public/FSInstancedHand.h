@@ -25,12 +25,15 @@ enum class EFSOpenXRHandRendering : uint8
 	Both UMETA(DisplayName="Both")
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHandTrackingEnabledDelegate, bool, bEnabled);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class FSOPENXRHANDTRACKING_API UFSInstancedHand : public UInstancedStaticMeshComponent
 {
 	GENERATED_BODY()
 
 	bool bHandTracked;
+	bool bPreviousHandTracked;
 
 	UPROPERTY()
 	TArray<FVector> BoneLocations;
@@ -68,11 +71,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Hand Pointer")
 	float HandPointerAngleFromPalm;
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Hand Pointer")
+	bool bHideHandPointerWhenNotTracked;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Hand Pointer")
 	float HandPointerLocationSpeed;
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Hand Pointer")
 	float HandPointerRotationSpeed;
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Hand Pointer")
 	int HandPointerDepth;
+
+	// Events
+	UPROPERTY(VisibleAnywhere, BlueprintAssignable)
+	FHandTrackingEnabledDelegate HandTrackingEnableChanged;
 
 	UFSInstancedHand();
 
