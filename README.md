@@ -11,6 +11,7 @@ This plugin was tested on Meta Quest 3, but must work on any other device that s
 
 ## Getting started
 You've to add an `UFSInstancedHand` component parented to your `VROrigin` component and select weither it's a `left` or `right` hand. The `UFSInstancedHand` component inherits from `UInstancedStaticMeshComponent`, that means the hand is rendered into one draw call. You can assign a material for each hand, or keep the default material. You can use this plugin in a C++ and Blueprint projects, all function are exposed to Blueprint.
+The final step is to call the `UpdateHand(const FXRMotionControllerData& InData, const float DeltaTime)` function in the `Tick` function. 
 
 ### Hand rendering
  Here are the supported rendering modes:
@@ -38,7 +39,7 @@ You can check using the `IsPinching(const EFSOpenXRPinchFingers Finger)` functio
 It's also possible to use the Enhanced Input System to trigger an `UInputAction` during a finger pinch. Check the `RegisterInputAction(UInputAction* InInputAction, const EFSOpenXRPinchFingers Finger)` function. You can control the pinch detection threshold using the `PinchThreshold` parameter.
 
 ### Hand Ray follower
-You can setup an hand ray (for instance a scaled cylinder and a `UWidgetInteractionComponent`). The system will move the hand ray at the correct hand location and rotation, adding an angle to the ray and a lag. The lag is required because it's the hand is constantly moving and you can't interact easily with UI without that. To enable this feature, you've to first register a `USceneComponent` that will be moved using the `RegisterHandRay(USceneComponent* InRayContainer)`
+You can setup a hand ray (for instance a scaled cylinder and a `UWidgetInteractionComponent`). The system will move the hand ray at the correct location and rotation, adding an angle to the ray and some lag. The lag is required because the hand is constantly moving and you can't interact easily with UI elements without that. To enable this feature, you've to first register a `USceneComponent` node, that will be moved using the `RegisterHandRay(USceneComponent* InRayContainer)`
 
 #### Hand Ray settings
 | Parameter | Description | Default |
