@@ -3,6 +3,9 @@
 This is a plugin that allows you to use hand tracking using the OpenXR plugin and the Hand Tracking extension.
 This plugin was tested on Meta Quest 3, but must work on any other device that supports the Hand Tracking extension.
 
+## Requirements
+- Unreal Engine 5.3
+
 ## Features
 - Basic hand rendering with many options
 - Pinch detection
