@@ -2,8 +2,6 @@
 
 
 #include "FSInstancedHand.h"
-
-#include "ComponentUtils.h"
 #include "EnhancedInputSubsystems.h"
 #include "XRVisualizationFunctionLibrary.h"
 #include "InputActionValue.h"
@@ -29,20 +27,26 @@ UFSInstancedHand::UFSInstancedHand()
 	HandPointerLocationSpeed = 8.0f;
 	HandPointerRotationSpeed = 2.0f;
 	HandPointerDepth = 0;
+	bHideHand = false;
 	bHideHandPointerWhenNotTracked = false;
 	BoneLocations.Init(FVector::ZeroVector, EHandKeypointCount);
 	BoneRotations.Init(FRotator::ZeroRotator, EHandKeypointCount);
+	BoneRelativeRotations.Init(FRotator::ZeroRotator, EHandKeypointCount);
 
 	// Use the default Cube by default
-	const auto MeshAsset = ConstructorHelpers::FObjectFinder<UStaticMesh>(
-		TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'"));
+	const auto MeshAsset =
+		ConstructorHelpers::FObjectFinder<UStaticMesh>(TEXT("StaticMesh'/Engine/BasicShapes/Cube.Cube'"));
+
 	if (MeshAsset.Object != nullptr)
-	{
 		UStaticMeshComponent::SetStaticMesh(MeshAsset.Object);
-	}
 
 	constexpr int InputActionCount = static_cast<int>(EFSOpenXRPinchFingers::Little) + 1;
 	InputActions.Init(nullptr, InputActionCount); // 4 Pinchable fingers.
+}
+
+FTransform UFSInstancedHand::GetHandTransform() const
+{
+	return bHandTracked ? CurrentHandTransform : FallbackTransform;
 }
 
 bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const float DeltaTime)
@@ -62,11 +66,11 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 		HandTrackingEnableChanged.Broadcast(bHandTracked);
 	}
 
-	if (!bHandTracked)
-		return false;
+	if (!bHandTracked) return false;
 
 	// Render wireframe if needed
-	if (HandRendering == EFSOpenXRHandRendering::Both || HandRendering == EFSOpenXRHandRendering::Wireframe)
+	if (!bHideHand && HandRendering == EFSOpenXRHandRendering::Both || HandRendering ==
+		EFSOpenXRHandRendering::Wireframe)
 	{
 		RenderFinger(InData, EHandKeypoint::ThumbMetacarpal, EHandKeypoint::ThumbTip);
 		RenderFinger(InData, EHandKeypoint::IndexMetacarpal, EHandKeypoint::IndexTip);
@@ -77,11 +81,19 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 
 	FTransform BoneTransform;
 
+	constexpr uint8 PalmIndex = static_cast<uint8>(EHandKeypoint::Palm);
+
 	// Populate array data and add instances.
 	for (int i = 0; i < InData.HandKeyPositions.Num(); i++)
 	{
 		BoneLocations[i] = InData.HandKeyPositions[i];
 		BoneRotations[i] = InData.HandKeyRotations[i].Rotator();
+
+		if (i == PalmIndex)
+		{
+			CurrentHandTransform.SetLocation(InData.HandKeyPositions[i]);
+			CurrentHandTransform.SetRotation(InData.HandKeyRotations[i]);
+		}
 
 		BoneTransform.SetLocation(InData.HandKeyPositions[i]);
 		BoneTransform.SetRotation(InData.HandKeyRotations[i]);
@@ -90,7 +102,20 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 		FVector BoneScale3D = FVector(BoneScaleFactor, BoneScaleFactor, BoneScaleFactor);
 		BoneTransform.SetScale3D(BoneScale3D);
 
-		AddInstance(BoneTransform, true);
+		bool bDisplayBone = !bHideHand;
+
+		if (bDisplayBone && bOnlyDisplayTips)
+		{
+			bDisplayBone =
+				i == static_cast<uint8>(EHandKeypoint::ThumbTip) ||
+				i == static_cast<uint8>(EHandKeypoint::IndexTip) ||
+				i == static_cast<uint8>(EHandKeypoint::MiddleTip) ||
+				i == static_cast<uint8>(EHandKeypoint::RingTip) ||
+				i == static_cast<uint8>(EHandKeypoint::LittleTip);
+		}
+
+		if (bDisplayBone)
+			AddInstance(BoneTransform, true);
 	}
 
 	// Broadcast Pinch Events
@@ -110,17 +135,36 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 		const FRotator PointerRotation = PointerContainer->GetComponentRotation();
 
 		// Get the target pointer transform and add an angle to the ray
-		constexpr int PalmIndex = static_cast<int>(EHandKeypoint::Palm);
 		const FVector PalmLocation = BoneLocations[PalmIndex];
 		FRotator PalmRotation = BoneRotations[PalmIndex];
 		PalmRotation.Pitch += HandPointerAngleFromPalm;
 
 		// Move the container
 		const FVector TargetLocation = FMath::Lerp(PointerLocation, PalmLocation, DeltaTime * HandPointerLocationSpeed);
-		const FRotator TargetRotation = FMath::Lerp(PointerRotation, PalmRotation, DeltaTime * HandPointerRotationSpeed);
+		const FRotator TargetRotation =
+			FMath::Lerp(PointerRotation, PalmRotation, DeltaTime * HandPointerRotationSpeed);
 		PointerContainer->SetWorldLocationAndRotation(TargetLocation, TargetRotation);
 	}
-	
+
+	if (bComputeRelativeRotations)
+	{
+		for (int i = 0; i < InData.HandKeyRotations.Num(); ++i)
+		{
+			const int ParentIndex = GetParentIndex(static_cast<EHandKeypoint>(i));
+			if (ParentIndex != INDEX_NONE)
+			{
+				FQuat ParentQuat = InData.HandKeyRotations[ParentIndex];
+				FQuat BoneQuat = InData.HandKeyRotations[i];
+				FQuat RelativeQuat = ParentQuat.Inverse() * BoneQuat;
+				BoneRelativeRotations[i] = RelativeQuat.Rotator();
+			}
+			else
+			{
+				BoneRelativeRotations[i] = InData.HandKeyRotations[i].Rotator();
+			}
+		}
+	}
+
 	return true;
 }
 
@@ -162,6 +206,18 @@ FRotator UFSInstancedHand::GetBoneRotation(const EHandKeypoint Keypoint) const
 	return BoneRotations[Index];
 }
 
+FVector UFSInstancedHand::GetBoneLocation(const EHandKeypoint Keypoint) const
+{
+	const int Index = static_cast<int>(Keypoint);
+	return BoneLocations[Index];
+}
+
+FRotator UFSInstancedHand::GetBoneRelativeRotation(const EHandKeypoint Keypoint) const
+{
+	const int Index = static_cast<int>(Keypoint);
+	return BoneRelativeRotations[Index];
+}
+
 void UFSInstancedHand::OverrideInputWithAction(const UInputAction* InInputAction, const float Value) const
 {
 	const APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
@@ -172,6 +228,58 @@ void UFSInstancedHand::OverrideInputWithAction(const UInputAction* InInputAction
 		FInputActionValue(Value),
 		TArray<UInputModifier*>(),
 		TArray<UInputTrigger*>());
+}
+
+int32 UFSInstancedHand::GetParentIndex(EHandKeypoint Keypoint)
+{
+	static TMap<EHandKeypoint, EHandKeypoint> ParentMap;
+	if (ParentMap.Num() == 0)
+	{
+		// Thumb
+		ParentMap.Add(EHandKeypoint::ThumbTip, EHandKeypoint::ThumbDistal);
+		ParentMap.Add(EHandKeypoint::ThumbDistal, EHandKeypoint::ThumbProximal);
+		ParentMap.Add(EHandKeypoint::ThumbProximal, EHandKeypoint::ThumbMetacarpal);
+
+		// Index
+		ParentMap.Add(EHandKeypoint::IndexTip, EHandKeypoint::IndexDistal);
+		ParentMap.Add(EHandKeypoint::IndexDistal, EHandKeypoint::IndexIntermediate);
+		ParentMap.Add(EHandKeypoint::IndexIntermediate, EHandKeypoint::IndexProximal);
+		ParentMap.Add(EHandKeypoint::IndexProximal, EHandKeypoint::IndexMetacarpal);
+
+		// Middle
+		ParentMap.Add(EHandKeypoint::MiddleTip, EHandKeypoint::MiddleDistal);
+		ParentMap.Add(EHandKeypoint::MiddleDistal, EHandKeypoint::MiddleIntermediate);
+		ParentMap.Add(EHandKeypoint::MiddleIntermediate, EHandKeypoint::MiddleProximal);
+		ParentMap.Add(EHandKeypoint::MiddleProximal, EHandKeypoint::MiddleMetacarpal);
+
+		// Ring
+		ParentMap.Add(EHandKeypoint::RingTip, EHandKeypoint::RingDistal);
+		ParentMap.Add(EHandKeypoint::RingDistal, EHandKeypoint::RingIntermediate);
+		ParentMap.Add(EHandKeypoint::RingIntermediate, EHandKeypoint::RingProximal);
+		ParentMap.Add(EHandKeypoint::RingProximal, EHandKeypoint::RingMetacarpal);
+
+		// Little
+		ParentMap.Add(EHandKeypoint::LittleTip, EHandKeypoint::LittleDistal);
+		ParentMap.Add(EHandKeypoint::LittleDistal, EHandKeypoint::LittleIntermediate);
+		ParentMap.Add(EHandKeypoint::LittleIntermediate, EHandKeypoint::LittleProximal);
+		ParentMap.Add(EHandKeypoint::LittleProximal, EHandKeypoint::LittleMetacarpal);
+
+		// Metacarpals to Palm
+		ParentMap.Add(EHandKeypoint::ThumbMetacarpal, EHandKeypoint::Palm);
+		ParentMap.Add(EHandKeypoint::IndexMetacarpal, EHandKeypoint::Palm);
+		ParentMap.Add(EHandKeypoint::MiddleMetacarpal, EHandKeypoint::Palm);
+		ParentMap.Add(EHandKeypoint::RingMetacarpal, EHandKeypoint::Palm);
+		ParentMap.Add(EHandKeypoint::LittleMetacarpal, EHandKeypoint::Palm);
+
+		// Wrist to Palm
+		ParentMap.Add(EHandKeypoint::Palm, EHandKeypoint::Wrist);
+	}
+
+	if (ParentMap.Contains(Keypoint))
+	{
+		return static_cast<int32>(ParentMap[Keypoint]);
+	}
+	return INDEX_NONE;
 }
 
 // Code forked from UXRVisualizationFunctionLibrary::RenderFinger

@@ -34,23 +34,34 @@ class FSOPENXRHANDTRACKING_API UFSInstancedHand : public UInstancedStaticMeshCom
 
 	bool bHandTracked;
 	bool bPreviousHandTracked;
+	FTransform CurrentHandTransform;
 
 	UPROPERTY()
 	TArray<FVector> BoneLocations;
 	UPROPERTY()
 	TArray<FRotator> BoneRotations;
 	UPROPERTY()
+	TArray<FRotator> BoneRelativeRotations;
+	UPROPERTY()
 	TArray<UInputAction*> InputActions;
 
 public:
 	// Settings
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Settings")
+	bool bHideHand;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Settings")
+	bool bOnlyDisplayTips;
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Settings")
 	float BoneScale;
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Settings")
 	bool bLeftHand;
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Settings")
 	float PinchThreshold;
-
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Settings")
+	FTransform FallbackTransform;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Settings")
+	bool bComputeRelativeRotations;
+	
 	// Rendering
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="FSOpenXRHandTracking|Rendering")
 	EFSOpenXRHandRendering HandRendering;
@@ -87,6 +98,8 @@ public:
 
 	// Public & Blueprint functions
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
+	FTransform GetHandTransform() const;
+	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	bool UpdateHand(const FXRMotionControllerData& InData, const float DeltaTime);
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	bool IsHandTracked() const;
@@ -98,9 +111,14 @@ public:
 	void RegisterHandRay(USceneComponent* InRayContainer);
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	FRotator GetBoneRotation(const EHandKeypoint Keypoint) const;
+	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
+	FVector GetBoneLocation(const EHandKeypoint Keypoint) const;
+	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
+	FRotator GetBoneRelativeRotation(const EHandKeypoint Keypoint) const;
 	
 private:
 	void RenderFinger(const FXRMotionControllerData& InData, const EHandKeypoint FingerStart,
 	                  const EHandKeypoint FingerEnd) const;
 	void OverrideInputWithAction(const UInputAction* InInputAction, const float Value) const;
+	static int32 GetParentIndex(EHandKeypoint Keypoint);
 };
