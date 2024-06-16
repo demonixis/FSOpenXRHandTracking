@@ -63,7 +63,7 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 		if (bUpdateHandPointer && PointerContainer != nullptr)
 			PointerContainer->SetVisibility(bHandTracked, true);
 
-		HandTrackingEnableChanged.Broadcast(bHandTracked);
+		HandTrackingEnableChanged.Broadcast(bLeftHand, bHandTracked);
 	}
 
 	if (!bHandTracked) return false;
@@ -123,8 +123,9 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 	{
 		if (InputActions[i] == nullptr) continue;
 		const EFSOpenXRPinchFingers Finger = static_cast<EFSOpenXRPinchFingers>(i);
-		const bool bPinching = IsPinching(Finger);
-		OverrideInputWithAction(InputActions[i], bPinching ? 1.0f : 0.0f);
+		
+		if (IsPinching(Finger))
+			OverrideInputWithAction(InputActions[i], 1.0f);
 	}
 
 	// Update the Hand Pointer if needed

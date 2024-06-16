@@ -25,7 +25,7 @@ enum class EFSOpenXRHandRendering : uint8
 	Both UMETA(DisplayName="Both")
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHandTrackingEnabledDelegate, bool, bEnabled);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FHandTrackingEnabledDelegate, bool, bLeft, bool, bEnabled);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class FSOPENXRHANDTRACKING_API UFSInstancedHand : public UInstancedStaticMeshComponent
