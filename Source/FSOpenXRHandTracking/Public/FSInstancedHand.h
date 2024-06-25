@@ -102,11 +102,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	bool UpdateHand(const FXRMotionControllerData& InData, const float DeltaTime);
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
+	static void GetDataFromSkeleton(UPoseableMeshComponent* Target, const bool bLeft, FXRMotionControllerData& OutData);
+	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	bool IsHandTracked() const;
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	bool IsPinching(const EFSOpenXRPinchFingers Finger) const;
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
-	void RegisterInputAction(UInputAction* InInputAction, const EFSOpenXRPinchFingers Finger);
+	void RegisterInputAction(const EFSOpenXRPinchFingers Finger, UInputAction* InInputAction);
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
 	void RegisterHandRay(USceneComponent* InRayContainer);
 	UFUNCTION(BlueprintCallable, Category="FSOpenXRHandTracking|Blueprint")
@@ -121,4 +123,6 @@ private:
 	                  const EHandKeypoint FingerEnd) const;
 	void OverrideInputWithAction(const UInputAction* InInputAction, const float Value) const;
 	static int32 GetParentIndex(EHandKeypoint Keypoint);
+
+	static uint8 GetOculusBone(EHandKeypoint Keypoint);
 };

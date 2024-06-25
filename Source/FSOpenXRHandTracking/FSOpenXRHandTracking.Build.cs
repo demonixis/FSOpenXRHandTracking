@@ -4,6 +4,8 @@ using UnrealBuildTool;
 
 public class FSOpenXRHandTracking : ModuleRules
 {
+	private const bool bMetaXREnabled = false;
+	
 	public FSOpenXRHandTracking(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
@@ -23,5 +25,16 @@ public class FSOpenXRHandTracking : ModuleRules
 			"Slate",
 			"SlateCore"
 		});
+
+		bool bMetaXRSupported = (Target.Platform == UnrealTargetPlatform.Android ||
+		                         Target.Platform == UnrealTargetPlatform.Win64) &&
+		                        bMetaXREnabled;
+
+		if (bMetaXRSupported)
+		{
+			PrivateDependencyModuleNames.Add("OculusXRInput");
+		}
+		
+		PublicDefinitions.Add($"WITH_METAXR={(bMetaXRSupported ? 1 : 0)}");
 	}
 }

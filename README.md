@@ -4,17 +4,37 @@ This is a plugin that allows you to use hand tracking using the OpenXR plugin an
 This plugin was tested on Meta Quest 3, but must work on any other device that supports the Hand Tracking extension.
 
 ## Requirements
-- Unreal Engine 5.3
+- Current Unreal Engine version: 5.4.x
 
 ## Features
 - Basic hand rendering with many options
-- Pinch detection
+- Pinch detection (optional)
 - Enhanced Input Support (optional)
 - Hand Ray support (optional)
+- MetaXR bridge (Experimental)
 
 ## Getting started
 You've to add an `UFSInstancedHand` component parented to your `VROrigin` component and select weither it's a `left` or `right` hand. The `UFSInstancedHand` component inherits from `UInstancedStaticMeshComponent`, that means the hand is rendered into one draw call. You can assign a material for each hand, or keep the default material. You can use this plugin in a C++ and Blueprint projects, all function are exposed to Blueprint.
 The final step is to call the `UpdateHand(const FXRMotionControllerData& InData, const float DeltaTime)` function in the `Tick` function. 
+
+### MetaXR Support
+When MetaXR plugin is enabled, Hand Tracking data are not valid and the plugin can't work. That's why there is a function called `GetDataFromSkeleton(UPoseableMeshComponent* Target, const bool bLeft, FXRMotionControllerData& OutData)`, that allows you to retrieve a valid `FXRMotionControllerData`.
+
+You've to add the OculusXRHands to your Pawn, then pass each hand to the function. You can use this function in both Blueprint and C++, here is a C++ example:
+
+```cpp
+FXRMotionControllerData HandData;
+
+UHeadMountedDisplayFunctionLibrary::GetMotionControllerData(this, EControllerHand::Left, HandData);
+
+#if WITH_METAXR
+UFSInstancedHand::GetDataFromSkeleton(LeftHandSkeleton, true, HandData);
+#endif
+
+LeftHandTracking->UpdateHand(HandData, DeltaSeconds);
+```
+
+Finally, you've to enable MetaXR support by passing the `bMetaXREnabled` private var to `true` in `FSOpenXRHandTracking.Build.cs`.
 
 ### Hand rendering
  Here are the supported rendering modes:
@@ -28,14 +48,19 @@ The final step is to call the `UpdateHand(const FXRMotionControllerData& InData,
 | `BoneScale` | Size of a rendered bone | `0.015f` |
 | `bLeftHand` | Set to `true` for the left hand | `false` |
 | `PinchThreshold` | Pinch detection threshold | `1.5f` |
+| `bHideHand` | Hide 3D hands but keeps the logic working (pinch/gestures) | `False` |
+| `bOnlyDisplayTups` | Only display tip bones | `False` |
+| `bComputeRelativeRotations` | Compute relative rotations, for use with gesture recognizer for instance | `False` |
 
 #### Wireframe settings
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `HandRendering` | Hand rendering mode | `Both` |
 | `WireframeColor` | Wireframe color | `FColor::Blue` |
 | `WireframeThickness` | Wireframe Thickness | `0.5f ` |
 | `bRenderWireframePalm` | Render palm wireframe | `false` |
 | `bRenderWireframeBones` | Render wireframe bones | `false` |
+| `HandPointerDepth` | Pointer Depth when rendering wireframe | `1.0f` |
 
 ### Pinch detection & Enhanced Input System
 You can check using the `IsPinching(const EFSOpenXRPinchFingers Finger)` function if a finger is pinching or not.

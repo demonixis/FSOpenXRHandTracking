@@ -7,6 +7,10 @@
 #include "InputActionValue.h"
 #include "InputModifiers.h"
 #include "InputTriggers.h"
+#if WITH_METAXR
+#include "OculusXRInputFunctionLibrary.h"
+#endif
+#include "PoseableMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 UFSInstancedHand::UFSInstancedHand()
@@ -123,7 +127,7 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 	{
 		if (InputActions[i] == nullptr) continue;
 		const EFSOpenXRPinchFingers Finger = static_cast<EFSOpenXRPinchFingers>(i);
-		
+
 		if (IsPinching(Finger))
 			OverrideInputWithAction(InputActions[i], 1.0f);
 	}
@@ -169,6 +173,56 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 	return true;
 }
 
+void UFSInstancedHand::GetDataFromSkeleton(UPoseableMeshComponent* Target, const bool bLeft, FXRMotionControllerData& OutData)
+{
+#if WITH_METAXR
+	auto Pose = UOculusXRInputFunctionLibrary::GetPointerPose(
+		bLeft ? EOculusXRHandType::HandLeft : EOculusXRHandType::HandRight);
+	
+	OutData.bValid = Target->IsVisible();
+	OutData.HandIndex = bLeft ? EControllerHand::Left : EControllerHand::Right;
+	OutData.AimPosition = Pose.GetLocation();
+	OutData.AimRotation = Pose.GetRotation();
+	OutData.DeviceName = bLeft ? "OculusXRLeftHand" : "OculusXRRightHand";
+	OutData.TrackingStatus = OutData.bValid ? ETrackingStatus::Tracked : ETrackingStatus::NotTracked;
+	OutData.DeviceVisualType = EXRVisualType::Hand;
+	OutData.HandKeyPositions.Empty();
+	OutData.HandKeyRotations.Empty();
+	OutData.HandKeyRadii.Empty();
+	EHandKeypoint HandKeyPoint;
+	uint8 BoneIndex;
+	EOculusXRBone Bone;
+	FString BoneName;
+	FName BoneFName;
+	FVector WorldLocation;
+	FRotator WorldRotation;
+
+	for (int i = 0; i < EHandKeypointCount; i++)
+	{
+		HandKeyPoint = static_cast<EHandKeypoint>(i);
+		BoneIndex = GetOculusBone(HandKeyPoint);
+		Bone = static_cast<EOculusXRBone>(BoneIndex);
+		BoneName = UOculusXRInputFunctionLibrary::GetBoneName(Bone);
+		BoneFName = FName(*BoneName);
+
+		WorldLocation = Target->GetBoneLocationByName(BoneFName, EBoneSpaces::WorldSpace);
+		WorldRotation = Target->GetBoneRotationByName(BoneFName, EBoneSpaces::WorldSpace);
+
+		if (HandKeyPoint == EHandKeypoint::Palm)
+		{
+			OutData.PalmPosition = WorldLocation;
+			OutData.PalmRotation = WorldRotation.Quaternion();
+			OutData.GripPosition = WorldLocation;
+			OutData.GripRotation = WorldRotation.Quaternion();
+		}
+
+		OutData.HandKeyPositions.Add(WorldLocation);
+		OutData.HandKeyRotations.Add(WorldRotation.Quaternion());
+		OutData.HandKeyRadii.Add(0.2f);
+	}
+#endif
+}
+
 bool UFSInstancedHand::IsHandTracked() const
 {
 	return bHandTracked;
@@ -189,7 +243,7 @@ bool UFSInstancedHand::IsPinching(const EFSOpenXRPinchFingers Finger) const
 	return FVector::Dist(BoneLocations[ThumbIndex], BoneLocations[OtherIndex]) <= PinchThreshold;
 }
 
-void UFSInstancedHand::RegisterInputAction(UInputAction* InInputAction, const EFSOpenXRPinchFingers Finger)
+void UFSInstancedHand::RegisterInputAction(const EFSOpenXRPinchFingers Finger, UInputAction* InInputAction)
 {
 	const int Index = static_cast<int>(Finger);
 	InputActions[Index] = InInputAction;
@@ -281,6 +335,63 @@ int32 UFSInstancedHand::GetParentIndex(EHandKeypoint Keypoint)
 		return static_cast<int32>(ParentMap[Keypoint]);
 	}
 	return INDEX_NONE;
+}
+
+uint8 UFSInstancedHand::GetOculusBone(EHandKeypoint Keypoint)
+{
+#if WITH_METAXR
+	if (Keypoint == EHandKeypoint::Wrist || Keypoint == EHandKeypoint::Palm)
+		return static_cast<uint8>(EOculusXRBone::Hand_Start);
+
+	if (Keypoint == EHandKeypoint::ThumbMetacarpal)
+		return static_cast<uint8>(EOculusXRBone::Thumb_1);
+	if (Keypoint == EHandKeypoint::ThumbProximal)
+		return static_cast<uint8>(EOculusXRBone::Thumb_2);
+	if (Keypoint == EHandKeypoint::ThumbDistal)
+		return static_cast<uint8>(EOculusXRBone::Thumb_3);
+	if (Keypoint == EHandKeypoint::ThumbTip)
+		return static_cast<uint8>(EOculusXRBone::Thumb_Tip);
+
+	if (Keypoint == EHandKeypoint::IndexProximal || Keypoint == EHandKeypoint::IndexMetacarpal)
+		return static_cast<uint8>(EOculusXRBone::Index_1);
+	if (Keypoint == EHandKeypoint::IndexIntermediate)
+		return static_cast<uint8>(EOculusXRBone::Index_2);
+	if (Keypoint == EHandKeypoint::IndexDistal)
+		return static_cast<uint8>(EOculusXRBone::Index_3);
+	if (Keypoint == EHandKeypoint::IndexTip)
+		return static_cast<uint8>(EOculusXRBone::Index_Tip);
+
+	if (Keypoint == EHandKeypoint::MiddleProximal || Keypoint == EHandKeypoint::MiddleMetacarpal)
+		return static_cast<uint8>(EOculusXRBone::Middle_1);
+	if (Keypoint == EHandKeypoint::MiddleIntermediate)
+		return static_cast<uint8>(EOculusXRBone::Middle_2);
+	if (Keypoint == EHandKeypoint::MiddleDistal)
+		return static_cast<uint8>(EOculusXRBone::Middle_3);
+	if (Keypoint == EHandKeypoint::MiddleTip)
+		return static_cast<uint8>(EOculusXRBone::Middle_Tip);
+
+	if (Keypoint == EHandKeypoint::RingProximal || Keypoint == EHandKeypoint::RingMetacarpal)
+		return static_cast<uint8>(EOculusXRBone::Ring_1);
+	if (Keypoint == EHandKeypoint::RingIntermediate)
+		return static_cast<uint8>(EOculusXRBone::Ring_2);
+	if (Keypoint == EHandKeypoint::RingDistal)
+		return static_cast<uint8>(EOculusXRBone::Ring_3);
+	if (Keypoint == EHandKeypoint::RingTip)
+		return static_cast<uint8>(EOculusXRBone::Ring_Tip);
+
+	if (Keypoint == EHandKeypoint::LittleMetacarpal)
+		return static_cast<uint8>(EOculusXRBone::Pinky_0);
+	if (Keypoint == EHandKeypoint::LittleProximal)
+		return static_cast<uint8>(EOculusXRBone::Pinky_1);
+	if (Keypoint == EHandKeypoint::LittleIntermediate)
+		return static_cast<uint8>(EOculusXRBone::Pinky_2);
+	if (Keypoint == EHandKeypoint::LittleDistal)
+		return static_cast<uint8>(EOculusXRBone::Pinky_3);
+	if (Keypoint == EHandKeypoint::LittleTip)
+		return static_cast<uint8>(EOculusXRBone::Pinky_Tip);
+#endif
+
+	return 0;
 }
 
 // Code forked from UXRVisualizationFunctionLibrary::RenderFinger
