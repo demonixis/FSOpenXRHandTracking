@@ -10,7 +10,7 @@
 #if WITH_METAXR
 #include "OculusXRInputFunctionLibrary.h"
 #endif
-#include "PoseableMeshComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 UFSInstancedHand::UFSInstancedHand()
@@ -151,6 +151,7 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 		PointerContainer->SetWorldLocationAndRotation(TargetLocation, TargetRotation);
 	}
 
+#if !WITH_METAXR
 	if (bComputeRelativeRotations)
 	{
 		for (int i = 0; i < InData.HandKeyRotations.Num(); ++i)
@@ -169,16 +170,18 @@ bool UFSInstancedHand::UpdateHand(const FXRMotionControllerData& InData, const f
 			}
 		}
 	}
+#endif
 
 	return true;
 }
 
-void UFSInstancedHand::GetDataFromSkeleton(UPoseableMeshComponent* Target, const bool bLeft, FXRMotionControllerData& OutData)
+void UFSInstancedHand::GetDataFromSkeleton(UPoseableMeshComponent* Target, const bool bLeft,
+                                           FXRMotionControllerData& OutData)
 {
 #if WITH_METAXR
-	auto Pose = UOculusXRInputFunctionLibrary::GetPointerPose(
+	const FTransform Pose = UOculusXRInputFunctionLibrary::GetPointerPose(
 		bLeft ? EOculusXRHandType::HandLeft : EOculusXRHandType::HandRight);
-	
+
 	OutData.bValid = Target->IsVisible();
 	OutData.HandIndex = bLeft ? EControllerHand::Left : EControllerHand::Right;
 	OutData.AimPosition = Pose.GetLocation();
@@ -189,6 +192,7 @@ void UFSInstancedHand::GetDataFromSkeleton(UPoseableMeshComponent* Target, const
 	OutData.HandKeyPositions.Empty();
 	OutData.HandKeyRotations.Empty();
 	OutData.HandKeyRadii.Empty();
+
 	EHandKeypoint HandKeyPoint;
 	uint8 BoneIndex;
 	EOculusXRBone Bone;
@@ -269,8 +273,16 @@ FVector UFSInstancedHand::GetBoneLocation(const EHandKeypoint Keypoint) const
 
 FRotator UFSInstancedHand::GetBoneRelativeRotation(const EHandKeypoint Keypoint) const
 {
+#if WITH_METAXR
+	const uint8 BoneId = GetOculusBone(Keypoint);
+	const EOculusXRBone BoneIndex = static_cast<EOculusXRBone>(BoneId);
+	const FQuat BoneQuat = UOculusXRInputFunctionLibrary::GetBoneRotation(
+		bLeftHand ? EOculusXRHandType::HandLeft : EOculusXRHandType::HandRight, BoneIndex);
+	return BoneQuat.Rotator();
+#else
 	const int Index = static_cast<int>(Keypoint);
 	return BoneRelativeRotations[Index];
+#endif
 }
 
 void UFSInstancedHand::OverrideInputWithAction(const UInputAction* InInputAction, const float Value) const
